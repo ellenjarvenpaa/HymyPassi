@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, PropsWithChildren } from "react";
+import React, { createContext, useContext, useState, PropsWithChildren, useRef, useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator, NativeStackScreenProps } from "@react-navigation/native-stack";
 import {
@@ -9,9 +9,16 @@ import {
   StyleSheet,
   useWindowDimensions,
   ImageBackground,
+  Alert,
+  Platform,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+
+// ---- NEW: data layer
+import { SQLiteProvider, useSQLiteContext, SQLiteDatabase } from "expo-sqlite";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 
 // Background image asset (place a file at ./assets/bg.png or adjust the path)
 const bg = require("./assets/bg.png");
@@ -51,6 +58,7 @@ interface QuestionRouteParams {
 interface SurveyContextValue {
   answers: SurveyAnswers;
   update: (patch: Partial<SurveyAnswers>) => void;
+  reset: () => void;
 }
 const SurveyContext = createContext<SurveyContextValue | null>(null);
 const useSurvey = () => {
@@ -68,8 +76,9 @@ function SurveyProvider({ children }: PropsWithChildren) {
   });
   const update = (patch: Partial<SurveyAnswers>) =>
     setAnswers((s) => ({ ...s, ...patch }));
+  const reset = () => setAnswers({ q1: 0, q2: 0, q3: 0, q4: 0, q5: null, feedback: "", service: "" });
   return (
-    <SurveyContext.Provider value={{ answers, update }}>
+    <SurveyContext.Provider value={{ answers, update, reset }}>
       {children}
     </SurveyContext.Provider>
   );
@@ -133,6 +142,87 @@ const Screen: React.FC<React.PropsWithChildren> = ({ children }) => {
     </ImageBackground>
   );
 };
+
+/* -------------------- Data helpers (SQLite) -------------------- */
+async function migrateDbIfNeeded(db: SQLiteDatabase) {
+  // Single table holding every submission
+  await db.execAsync(`
+    PRAGMA journal_mode = WAL;
+    CREATE TABLE IF NOT EXISTS responses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      q1 INTEGER NOT NULL,
+      q2 INTEGER NOT NULL,
+      q3 INTEGER NOT NULL,
+      q4 INTEGER NOT NULL,
+      q5 INTEGER NULL,          -- 1 = true, 0 = false, NULL = not answered
+      feedback TEXT NOT NULL,
+      service TEXT NOT NULL
+    );
+    -- Optional: index by date if you ever query by time
+    CREATE INDEX IF NOT EXISTS idx_responses_created_at ON responses(created_at);
+  `);
+}
+
+async function saveResponse(db: SQLiteDatabase, a: SurveyAnswers) {
+  const q5val = a.q5 === null ? null : (a.q5 ? 1 : 0);
+  await db.runAsync(
+    `INSERT INTO responses (q1,q2,q3,q4,q5,feedback,service)
+     VALUES (?,?,?,?,?,?,?)`,
+    [a.q1, a.q2, a.q3, a.q4, q5val, a.feedback.trim(), a.service.trim()]
+  );
+}
+
+async function exportCsv(db: SQLiteDatabase): Promise<string> {
+  const rows = await db.getAllAsync<{
+    id: number; created_at: string; q1: number; q2: number; q3: number; q4: number; q5: number | null; feedback: string; service: string;
+  }>(`SELECT id, created_at, q1, q2, q3, q4, q5, feedback, service FROM responses ORDER BY id ASC`);
+
+  const header = ["id","created_at","q1","q2","q3","q4","q5","feedback","service"];
+  const escapeCsv = (val: unknown) => {
+    if (val === null || val === undefined) return "";
+    const s = String(val);
+    if (/[",\n]/.test(s)) return `"${s.replace(/"/g,'""')}"`;
+    return s;
+  };
+
+  const lines = [
+    header.join(","),
+    ...rows.map(r => [
+      r.id,
+      r.created_at,
+      r.q1,
+      r.q2,
+      r.q3,
+      r.q4,
+      r.q5 === null ? "" : r.q5,
+      r.feedback,
+      r.service,
+    ].map(escapeCsv).join(","))
+  ];
+
+  const csv = lines.join("\n");
+  const stamp = new Date().toISOString().replace(/[:.]/g,"-");
+  const fileUri = `${FileSystem.documentDirectory}responses-${stamp}.csv`;
+
+  // ✅ Don’t pass an encoding object; default is UTF-8
+  await FileSystem.writeAsStringAsync(fileUri, csv);
+
+  // Share if available (mobile). On web, fall back to alert.
+  try {
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(fileUri, { mimeType: "text/csv", dialogTitle: "Vie CSV" });
+    } else {
+      // Web / environments without Sharing
+      Alert.alert("CSV luotu", `Tiedosto: ${fileUri}`);
+    }
+  } catch (e) {
+    // If sharing fails, at least return the path
+    console.warn("Sharing failed:", e);
+  }
+
+  return fileUri;
+}
 
 /* -------------------- Screens -------------------- */
 type StartProps = NativeStackScreenProps<RootStackParamList, "Start">;
@@ -261,7 +351,7 @@ function Service({ navigation }: ServiceProps) {
           disabled={!answers.service}
           onPress={() => navigation.navigate("Submit")}
         >
-          <Text style={styles.buttonText}>Lähetä</Text>
+          <Text style={styles.buttonText}>Seuraava</Text>
         </Pressable>
       </View>
     </Screen>
@@ -270,13 +360,54 @@ function Service({ navigation }: ServiceProps) {
 
 type SubmitProps = NativeStackScreenProps<RootStackParamList, "Submit">;
 function SubmitScreen({ navigation }: SubmitProps) {
-  // Here you'd POST `answers` to your backend; `service` may be empty if the user skipped.
+  const db = useSQLiteContext();
+  const { answers, reset } = useSurvey();
+  const savedRef = useRef(false);
+
+  // Save exactly once when arriving on this screen
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (savedRef.current) return;
+      try {
+        await saveResponse(db, answers);
+        savedRef.current = true;
+      } catch (e: any) {
+        if (!mounted) return;
+        Alert.alert("Tallennus epäonnistui", e?.message ?? String(e));
+      }
+    })();
+    return () => { mounted = false; };
+  }, [db, answers]);
+
+  const handleNew = () => {
+    reset();
+    navigation.popToTop();
+  };
+
+  const handleExport = async () => {
+    try {
+      const path = await exportCsv(db);
+      if (Platform.OS === "web") {
+        Alert.alert("CSV luotu", `Tiedosto: ${path}`);
+      }
+    } catch (e: any) {
+      Alert.alert("CSV-vienti epäonnistui", e?.message ?? String(e));
+    }
+  };
+
   return (
     <Screen>
       <Text style={styles.title}>Kiitos!</Text>
       <Text style={styles.question}>Palautteesi on vastaanotettu.</Text>
-      <Pressable style={[styles.button, { marginTop: 24 }]} onPress={() => navigation.popToTop()}>
+
+      <Pressable style={[styles.button, { marginTop: 24 }]} onPress={handleNew}>
         <Text style={styles.buttonText}>Uusi vastaus</Text>
+      </Pressable>
+
+      {/* Simple admin/export control */}
+      <Pressable style={[styles.secondary, { alignSelf: "center", marginTop: 12 }]} onPress={handleExport}>
+        <Text>Vie kaikki vastaukset CSV:ksi</Text>
       </Pressable>
     </Screen>
   );
@@ -288,41 +419,44 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function App() {
   return (
     <SafeAreaProvider>
-      <SurveyProvider>
-        <NavigationContainer>
-          <Stack.Navigator>
-            <Stack.Screen name="Start" component={StartScreen} options={{ title: "Aloitus" }} />
-            <Stack.Screen
-              name="Q1"
-              component={GenericStarQuestion}
-              options={{ title: "Kysymys 1" }}
-              initialParams={{ keyName: "q1", question: "Palvelut olivat helposti saatavilla", next: "Q2" }}
-            />
-            <Stack.Screen
-              name="Q2"
-              component={GenericStarQuestion}
-              options={{ title: "Kysymys 2" }}
-              initialParams={{ keyName: "q2", question: "Palvelukokemus oli mielestäni viihtyisä ja sujuva", next: "Q3" }}
-            />
-            <Stack.Screen
-              name="Q3"
-              component={GenericStarQuestion}
-              options={{ title: "Kysymys 3" }}
-              initialParams={{ keyName: "q3", question: "Koen saaneeni tukea tai tarvittaessa ohjausta", next: "Q4" }}
-            />
-            <Stack.Screen
-              name="Q4"
-              component={GenericStarQuestion}
-              options={{ title: "Kysymys 4" }}
-              initialParams={{ keyName: "q4", question: "Haluaisin tulla uudelleen / suosittelen palvelua muille", next: "Q5" }}
-            />
-            <Stack.Screen name="Q5" component={Question5} options={{ title: "Kysymys 5" }} />
-            <Stack.Screen name="OpenFeedback" component={OpenFeedback} options={{ title: "Avoin palaute" }} />
-            <Stack.Screen name="Service" component={Service} options={{ title: "Palvelu" }} />
-            <Stack.Screen name="Submit" component={SubmitScreen} options={{ title: "Kiitos" }} />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </SurveyProvider>
+      {/* Provide SQLite at the top level and run migrations once */}
+      <SQLiteProvider databaseName="feedback.db" onInit={migrateDbIfNeeded}>
+        <SurveyProvider>
+          <NavigationContainer>
+            <Stack.Navigator>
+              <Stack.Screen name="Start" component={StartScreen} options={{ title: "Aloitus" }} />
+              <Stack.Screen
+                name="Q1"
+                component={GenericStarQuestion}
+                options={{ title: "Kysymys 1" }}
+                initialParams={{ keyName: "q1", question: "Palvelut olivat helposti saatavilla", next: "Q2" }}
+              />
+              <Stack.Screen
+                name="Q2"
+                component={GenericStarQuestion}
+                options={{ title: "Kysymys 2" }}
+                initialParams={{ keyName: "q2", question: "Palvelukokemus oli mielestäni viihtyisä ja sujuva", next: "Q3" }}
+              />
+              <Stack.Screen
+                name="Q3"
+                component={GenericStarQuestion}
+                options={{ title: "Kysymys 3" }}
+                initialParams={{ keyName: "q3", question: "Koen saaneeni tukea tai tarvittaessa ohjausta", next: "Q4" }}
+              />
+              <Stack.Screen
+                name="Q4"
+                component={GenericStarQuestion}
+                options={{ title: "Kysymys 4" }}
+                initialParams={{ keyName: "q4", question: "Haluaisin tulla uudelleen / suosittelen palvelua muille", next: "Q5" }}
+              />
+              <Stack.Screen name="Q5" component={Question5} options={{ title: "Kysymys 5" }} />
+              <Stack.Screen name="OpenFeedback" component={OpenFeedback} options={{ title: "Avoin palaute" }} />
+              <Stack.Screen name="Service" component={Service} options={{ title: "Palvelu" }} />
+              <Stack.Screen name="Submit" component={SubmitScreen} options={{ title: "Kiitos" }} />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </SurveyProvider>
+      </SQLiteProvider>
     </SafeAreaProvider>
   );
 }
