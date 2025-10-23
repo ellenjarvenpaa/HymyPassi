@@ -371,7 +371,7 @@ function SubmitScreen({ navigation }: SubmitProps) {
   return (
     <Screen>
       <Text style={styles.title}>Kiitos!</Text>
-      <Text style={styles.question}>Palautteesi on vastaanotettu.</Text>
+      <Text style={styles.question}>Palautteesi tukee opiskelijoiden kasvua tulevaisuuden osaajiksi. {"\u2764\uFE0F"}</Text>
       <Pressable style={[styles.button, { marginTop: 24 }]} onPress={handleNew}>
         <Text style={styles.buttonText}>Uusi vastaus</Text>
       </Pressable>
