@@ -223,25 +223,35 @@ function StartScreen({ navigation }: StartProps) {
   const tripleTap = useTripleTap();
   const tryUnlock = () => { if (tripleTap()) setShowPin(true); };
   return (
-    <Screen>
-      <Pressable
-        onPress={tryUnlock}
-        onLongPress={() => setShowPin(true)} // fallback while you test
-        hitSlop={20}
-        style={{ alignSelf: "center", paddingVertical: 8, paddingHorizontal: 12 }}
-      >
-        <Text style={styles.title}>HyMy-kylän palautekysely</Text>
-      </Pressable>
-      <Pressable style={styles.button} onPress={() => navigation.navigate("Q1")}>
-        <Text style={styles.buttonText}>Aloita</Text>
-      </Pressable>
-      <AdminPinModal
-        visible={showPin}
-        onClose={() => setShowPin(false)}
-        onAuthed={() => { setShowPin(false); navigation.navigate("AdminTools"); }}
-      />
-    </Screen>
-  );
+  <Screen>
+    {/* Bigger hit area + long-press fallback */}
+    <Pressable
+      onPress={tryUnlock}
+      onLongPress={() => setShowPin(true)} // fallback while you test
+      hitSlop={20}
+      style={{ alignSelf: "center", paddingVertical: 8, paddingHorizontal: 12 }}
+    >
+      <Text style={styles.title}>HyMy-kylän palautekysely</Text>
+    </Pressable>
+
+    {/* 🆕 New instruction text */}
+    <Text style={styles.helperText}>Arvioi kokemuksesi asteikolla 1–5 tähteä</Text>
+
+    <Pressable style={styles.button} onPress={() => navigation.navigate("Q1")}>
+      <Text style={styles.buttonText}>Aloita</Text>
+    </Pressable>
+
+    <AdminPinModal
+      visible={showPin}
+      onClose={() => setShowPin(false)}
+      onAuthed={() => {
+        setShowPin(false);
+        navigation.navigate("AdminTools");
+      }}
+    />
+  </Screen>
+);
+
 }
 
 type AdminProps = NativeStackScreenProps<RootStackParamList, "AdminTools">;
@@ -278,6 +288,7 @@ function GenericStarQuestion({ route, navigation }: GenericStarQuestionProps) {
   return (
     <Screen>
       <Text style={styles.question}>{question}</Text>
+      <Text style={styles.subnote}>1 = huono, 5 = erinomainen</Text>
       <RatingStars value={answers[keyName]} onChange={(v) => update({ [keyName]: v } as Partial<SurveyAnswers>)} />
       <View style={styles.navRow}>
         <Pressable style={styles.secondary} onPress={() => navigation.goBack()}><Text>Takaisin</Text></Pressable>
@@ -436,4 +447,18 @@ const styles = StyleSheet.create({
   pickerWrap: { borderWidth: 1, borderColor: "#ddd", borderRadius: 12, overflow: "hidden", backgroundColor: "#ffffffff" },
   textLink: { alignSelf: "center", marginTop: 8, padding: 6 },
   textLinkLabel: { textDecorationLine: "underline", color: "#4b5563", fontWeight: "600" },
+  helperText: {
+  fontSize: 14,
+  textAlign: "center",
+  color: "#555",
+  marginBottom: 12,
+},
+
+subnote: {
+  fontSize: 14,
+  textAlign: "center",
+  color: "#666",
+  marginBottom: 6,
+},
+
 });
