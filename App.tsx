@@ -10,7 +10,6 @@ import {
   useWindowDimensions,
   ImageBackground,
   Alert,
-  Platform,
   Modal,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
@@ -23,6 +22,122 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 
 const bg = require("./assets/bg.png");
+
+/* -------------------- Language setup -------------------- */
+type LangCode = "fi" | "en" | "sv";
+
+const translations = {
+  fi: {
+    startTitle: "HyMy-kylän palautekysely",
+    startButton: "Aloita",
+    rateHint: "Arvioi kokemuksesi asteikolla 1–5 tähteä",
+    scaleHint: "1 = huono, 5 = erinomainen",
+    q1: "Palvelut olivat helposti saatavilla",
+    q2: "Palvelukokemus oli mielestäni viihtyisä ja sujuva",
+    q3: "Koen saaneeni tukea tai tarvittaessa ohjausta",
+    q4: "Haluaisin tulla uudelleen / suosittelen palvelua muille",
+    q5: "Haluatko antaa avointa palautetta?",
+    openFeedback: "Avoin palaute",
+    placeholder: "Kirjoita palaute...",
+    serviceTitle: "Käyttämäsi palvelu",
+    skipService: "En halua kertoa tätä",
+    send: "Lähetä",
+    next: "Seuraava",
+    back: "Takaisin",
+    yes: "Kyllä",
+    no: "Ei",
+    thanks: "Kiitos!",
+    received: "Palautteesi on vastaanotettu.",
+    new: "Uusi vastaus",
+    chooseService: "Valitse palvelu",
+    adminTitle: "Ylläpito",
+    exportAll: "Vie kaikki vastaukset CSV:ksi",
+    exportHint: "Vie kaikki vastaukset CSV:ksi.",
+  },
+  en: {
+    startTitle: "HyMy-kylä feedback survey",
+    startButton: "Start",
+    rateHint: "Rate your experience from 1–5 stars",
+    scaleHint: "1 = poor, 5 = excellent",
+    q1: "Services were easily accessible",
+    q2: "My service experience was pleasant and smooth",
+    q3: "I felt supported or guided when needed",
+    q4: "I would like to return / I recommend the service to others",
+    q5: "Would you like to give open feedback?",
+    openFeedback: "Open feedback",
+    placeholder: "Write your feedback...",
+    serviceTitle: "Service used",
+    skipService: "I prefer not to say",
+    send: "Submit",
+    next: "Next",
+    back: "Back",
+    yes: "Yes",
+    no: "No",
+    thanks: "Thank you!",
+    received: "Your feedback has been received.",
+    new: "New response",
+    chooseService: "Select service",
+    adminTitle: "Admin",
+    exportAll: "Export all responses to CSV",
+    exportHint: "Export all responses to CSV.",
+  },
+  sv: {
+    startTitle: "HyMy-kylä feedbackenkät",
+    startButton: "Börja",
+    rateHint: "Bedöm din upplevelse från 1–5 stjärnor",
+    scaleHint: "1 = dålig, 5 = utmärkt",
+    q1: "Tjänsterna var lättillgängliga",
+    q2: "Min serviceupplevelse var trevlig och smidig",
+    q3: "Jag fick stöd eller vägledning vid behov",
+    q4: "Jag skulle gärna komma tillbaka / rekommenderar tjänsten till andra",
+    q5: "Vill du ge öppen feedback?",
+    openFeedback: "Öppen feedback",
+    placeholder: "Skriv din feedback...",
+    serviceTitle: "Använd tjänst",
+    skipService: "Jag vill inte säga",
+    send: "Skicka",
+    next: "Nästa",
+    back: "Tillbaka",
+    yes: "Ja",
+    no: "Nej",
+    thanks: "Tack!",
+    received: "Din feedback har mottagits.",
+    new: "Nytt svar",
+    chooseService: "Välj tjänst",
+    adminTitle: "Administration",
+    exportAll: "Exportera alla svar till CSV",
+    exportHint: "Exportera alla svar till CSV.",
+  },
+} as const;
+
+interface LanguageContextValue {
+  lang: LangCode;
+  setLang: (l: LangCode) => void;
+  t: (key: keyof typeof translations["fi"]) => string;
+}
+const LanguageContext = createContext<LanguageContextValue | null>(null);
+const useLang = () => {
+  const ctx = useContext(LanguageContext);
+  if (!ctx) throw new Error("useLang must be inside LanguageProvider");
+  return ctx;
+};
+function LanguageProvider({ children }: PropsWithChildren) {
+  const [lang, setLang] = useState<LangCode>("fi");
+  const t = (key: keyof typeof translations["fi"]) => translations[lang][key];
+  return <LanguageContext.Provider value={{ lang, setLang, t }}>{children}</LanguageContext.Provider>;
+}
+function LanguagePicker() {
+  const { lang, setLang } = useLang();
+  return (
+    <View style={{ alignSelf: "center", marginVertical: 8 }}>
+      <Picker selectedValue={lang} onValueChange={(v) => setLang(v as LangCode)} style={{ width: 220 }}>
+        <Picker.Item label="🇫🇮 Suomi" value="fi" />
+        <Picker.Item label="🇬🇧 English" value="en" />
+        <Picker.Item label="🇸🇪 Svenska" value="sv" />
+      </Picker>
+    </View>
+  );
+}
 
 /* -------------------- Types -------------------- */
 type StarKeys = "q1" | "q2" | "q3" | "q4";
@@ -46,7 +161,6 @@ type RootStackParamList = {
 };
 interface QuestionRouteParams {
   keyName: StarKeys;
-  question: string;
   next: keyof RootStackParamList;
 }
 
@@ -92,13 +206,14 @@ function RatingStars({ value, onChange }: RatingStarsProps) {
 }
 interface YesNoProps { value: boolean | null; onChange: (v: boolean) => void; }
 function YesNo({ value, onChange }: YesNoProps) {
+  const { t } = useLang();
   return (
     <View style={{ flexDirection: "row", gap: 12, alignSelf: "center" }}>
       <Pressable onPress={() => onChange(true)} style={[styles.pill, value === true && styles.pillActive]}>
-        <Text style={[styles.pillText, value === true && styles.pillTextActive]}>Kyllä</Text>
+        <Text style={[styles.pillText, value === true && styles.pillTextActive]}>{t("yes")}</Text>
       </Pressable>
       <Pressable onPress={() => onChange(false)} style={[styles.pill, value === false && styles.pillActive2]}>
-        <Text style={[styles.pillText, value === false && styles.pillTextActive2]}>Ei</Text>
+        <Text style={[styles.pillText, value === false && styles.pillTextActive2]}>{t("no")}</Text>
       </Pressable>
     </View>
   );
@@ -117,6 +232,7 @@ const Screen: React.FC<React.PropsWithChildren> = ({ children }) => {
 };
 
 /* -------------------- Data helpers (SQLite) -------------------- */
+// Keep the current q1..q5 schema (no deletion/migration here)
 async function migrateDbIfNeeded(db: SQLiteDatabase) {
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
@@ -127,7 +243,7 @@ async function migrateDbIfNeeded(db: SQLiteDatabase) {
       q2 INTEGER NOT NULL,
       q3 INTEGER NOT NULL,
       q4 INTEGER NOT NULL,
-      q5 INTEGER NULL,
+      q5 INTEGER NULL,          -- 1 = true, 0 = false, NULL = not answered
       feedback TEXT NOT NULL,
       service TEXT NOT NULL
     );
@@ -137,7 +253,8 @@ async function migrateDbIfNeeded(db: SQLiteDatabase) {
 async function saveResponse(db: SQLiteDatabase, a: SurveyAnswers) {
   const q5val = a.q5 === null ? null : (a.q5 ? 1 : 0);
   await db.runAsync(
-    `INSERT INTO responses (q1,q2,q3,q4,q5,feedback,service) VALUES (?,?,?,?,?,?,?)`,
+    `INSERT INTO responses (q1,q2,q3,q4,q5,feedback,service)
+     VALUES (?,?,?,?,?,?,?)`,
     [a.q1, a.q2, a.q3, a.q4, q5val, a.feedback.trim(), a.service.trim()]
   );
 }
@@ -145,20 +262,35 @@ async function exportCsv(db: SQLiteDatabase): Promise<string> {
   const rows = await db.getAllAsync<{
     id: number; created_at: string; q1: number; q2: number; q3: number; q4: number; q5: number | null; feedback: string; service: string;
   }>(`SELECT id, created_at, q1, q2, q3, q4, q5, feedback, service FROM responses ORDER BY id ASC`);
+
   const header = ["id","created_at","q1","q2","q3","q4","q5","feedback","service"];
   const escapeCsv = (val: unknown) => {
     if (val === null || val === undefined) return "";
     const s = String(val);
     return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
   };
+
   const lines = [
     header.join(","),
-    ...rows.map(r => [r.id,r.created_at,r.q1,r.q2,r.q3,r.q4,(r.q5===null?"":r.q5),r.feedback,r.service].map(escapeCsv).join(","))
+    ...rows.map(r => [
+      r.id,
+      r.created_at,
+      r.q1,
+      r.q2,
+      r.q3,
+      r.q4,
+      r.q5 === null ? "" : r.q5,
+      r.feedback,
+      r.service,
+    ].map(escapeCsv).join(","))
   ];
+
   const csv = lines.join("\n");
   const stamp = new Date().toISOString().replace(/[:.]/g,"-");
   const fileUri = `${FileSystem.documentDirectory}responses-${stamp}.csv`;
+
   await FileSystem.writeAsStringAsync(fileUri, csv);
+
   try {
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(fileUri, { mimeType: "text/csv", dialogTitle: "Vie CSV" });
@@ -168,6 +300,7 @@ async function exportCsv(db: SQLiteDatabase): Promise<string> {
   } catch (e) {
     console.warn("Sharing failed:", e);
   }
+
   return fileUri;
 }
 
@@ -219,43 +352,43 @@ function AdminPinModal({
 /* -------------------- Screens -------------------- */
 type StartProps = NativeStackScreenProps<RootStackParamList, "Start">;
 function StartScreen({ navigation }: StartProps) {
+  const { t } = useLang();
   const [showPin, setShowPin] = React.useState(false);
   const tripleTap = useTripleTap();
   const tryUnlock = () => { if (tripleTap()) setShowPin(true); };
+
   return (
-  <Screen>
-    {/* Bigger hit area + long-press fallback */}
-    <Pressable
-      onPress={tryUnlock}
-      onLongPress={() => setShowPin(true)} // fallback while you test
-      hitSlop={20}
-      style={{ alignSelf: "center", paddingVertical: 8, paddingHorizontal: 12 }}
-    >
-      <Text style={styles.title}>HyMy-kylän palautekysely</Text>
-    </Pressable>
+    <Screen>
+      <LanguagePicker />
 
-    {/* 🆕 New instruction text */}
-    <Text style={styles.helperText}>Arvioi kokemuksesi asteikolla 1–5 tähteä</Text>
+      {/* Triple-tap or long-press the title area to open admin PIN */}
+      <Pressable
+        onPress={tryUnlock}
+        onLongPress={() => setShowPin(true)}
+        hitSlop={20}
+        style={{ alignSelf: "center", paddingVertical: 8, paddingHorizontal: 12 }}
+      >
+        <Text style={styles.title}>{t("startTitle")}</Text>
+      </Pressable>
 
-    <Pressable style={styles.button} onPress={() => navigation.navigate("Q1")}>
-      <Text style={styles.buttonText}>Aloita</Text>
-    </Pressable>
+      <Text style={styles.helperText}>{t("rateHint")}</Text>
 
-    <AdminPinModal
-      visible={showPin}
-      onClose={() => setShowPin(false)}
-      onAuthed={() => {
-        setShowPin(false);
-        navigation.navigate("AdminTools");
-      }}
-    />
-  </Screen>
-);
+      <Pressable style={styles.button} onPress={() => navigation.navigate("Q1", { keyName: "q1", next: "Q2" })}>
+        <Text style={styles.buttonText}>{t("startButton")}</Text>
+      </Pressable>
 
+      <AdminPinModal
+        visible={showPin}
+        onClose={() => setShowPin(false)}
+        onAuthed={() => { setShowPin(false); navigation.navigate("AdminTools"); }}
+      />
+    </Screen>
+  );
 }
 
 type AdminProps = NativeStackScreenProps<RootStackParamList, "AdminTools">;
 function AdminTools({ navigation }: AdminProps) {
+  const { t } = useLang();
   const db = useSQLiteContext();
   const handleExport = async () => {
     try {
@@ -269,13 +402,13 @@ function AdminTools({ navigation }: AdminProps) {
   };
   return (
     <Screen>
-      <Text style={styles.title}>Ylläpito</Text>
-      <Text style={[styles.question, {marginBottom:16}]}>Vie kaikki vastaukset CSV:ksi.</Text>
+      <Text style={styles.title}>{t("adminTitle")}</Text>
+      <Text style={[styles.question, {marginBottom:16}]}>{t("exportHint")}</Text>
       <Pressable style={styles.button} onPress={handleExport}>
-        <Text style={styles.buttonText}>Vie kaikki vastaukset CSV:ksi</Text>
+        <Text style={styles.buttonText}>{t("exportAll")}</Text>
       </Pressable>
       <Pressable style={[styles.secondary, { alignSelf:"center", marginTop:12 }]} onPress={() => navigation.goBack()}>
-        <Text>Takaisin</Text>
+        <Text>{t("back")}</Text>
       </Pressable>
     </Screen>
   );
@@ -283,17 +416,25 @@ function AdminTools({ navigation }: AdminProps) {
 
 type GenericStarQuestionProps = NativeStackScreenProps<RootStackParamList, "Q1"|"Q2"|"Q3"|"Q4">;
 function GenericStarQuestion({ route, navigation }: GenericStarQuestionProps) {
-  const { keyName, question, next } = route.params as QuestionRouteParams;
+  const { t } = useLang();
+  const { keyName, next } = route.params as QuestionRouteParams;
   const { answers, update } = useSurvey();
+
   return (
     <Screen>
-      <Text style={styles.question}>{question}</Text>
-      <Text style={styles.subnote}>1 = huono, 5 = erinomainen</Text>
+      <Text style={styles.question}>{t(keyName)}</Text>
+      <Text style={styles.subnote}>{t("scaleHint")}</Text>
       <RatingStars value={answers[keyName]} onChange={(v) => update({ [keyName]: v } as Partial<SurveyAnswers>)} />
       <View style={styles.navRow}>
-        <Pressable style={styles.secondary} onPress={() => navigation.goBack()}><Text>Takaisin</Text></Pressable>
-        <Pressable style={[styles.button, { opacity: answers[keyName] ? 1 : 0.5 }]} disabled={!answers[keyName]} onPress={() => navigation.navigate(next)}>
-          <Text style={styles.buttonText}>Seuraava</Text>
+        <Pressable style={styles.secondary} onPress={() => navigation.goBack()}>
+          <Text>{t("back")}</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.button, { opacity: answers[keyName] ? 1 : 0.5 }]}
+          disabled={!answers[keyName]}
+          onPress={() => navigation.navigate(next)}
+        >
+          <Text style={styles.buttonText}>{t("next")}</Text>
         </Pressable>
       </View>
     </Screen>
@@ -302,15 +443,22 @@ function GenericStarQuestion({ route, navigation }: GenericStarQuestionProps) {
 
 type Q5Props = NativeStackScreenProps<RootStackParamList, "Q5">;
 function Question5({ navigation }: Q5Props) {
+  const { t } = useLang();
   const { answers, update } = useSurvey();
   return (
     <Screen>
-      <Text style={styles.question}>Haluatko antaa avointa palautetta?</Text>
+      <Text style={styles.question}>{t("q5")}</Text>
       <YesNo value={answers.q5} onChange={(v) => update({ q5: v })} />
       <View style={styles.navRow}>
-        <Pressable style={styles.secondary} onPress={() => navigation.goBack()}><Text>Takaisin</Text></Pressable>
-        <Pressable style={[styles.button, { opacity: answers.q5 !== null ? 1 : 0.5 }]} disabled={answers.q5 === null} onPress={() => navigation.navigate(answers.q5 ? "OpenFeedback" : "Service")}>
-          <Text style={styles.buttonText}>Seuraava</Text>
+        <Pressable style={styles.secondary} onPress={() => navigation.goBack()}>
+          <Text>{t("back")}</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.button, { opacity: answers.q5 !== null ? 1 : 0.5 }]}
+          disabled={answers.q5 === null}
+          onPress={() => navigation.navigate(answers.q5 ? "OpenFeedback" : "Service")}
+        >
+          <Text style={styles.buttonText}>{t("next")}</Text>
         </Pressable>
       </View>
     </Screen>
@@ -319,14 +467,25 @@ function Question5({ navigation }: Q5Props) {
 
 type OpenFeedbackProps = NativeStackScreenProps<RootStackParamList, "OpenFeedback">;
 function OpenFeedback({ navigation }: OpenFeedbackProps) {
+  const { t } = useLang();
   const { answers, update } = useSurvey();
   return (
     <Screen>
-      <Text style={styles.question}>Avoin palaute</Text>
-      <TextInput placeholder="Kirjoita palaute..." value={answers.feedback} onChangeText={(t) => update({ feedback: t })} multiline style={styles.textarea}/>
+      <Text style={styles.question}>{t("openFeedback")}</Text>
+      <TextInput
+        placeholder={t("placeholder")}
+        value={answers.feedback}
+        onChangeText={(val) => update({ feedback: val })}
+        multiline
+        style={styles.textarea}
+      />
       <View style={styles.navRow}>
-        <Pressable style={styles.secondary} onPress={() => navigation.goBack()}><Text>Takaisin</Text></Pressable>
-        <Pressable style={styles.button} onPress={() => navigation.navigate("Service")}><Text style={styles.buttonText}>Seuraava</Text></Pressable>
+        <Pressable style={styles.secondary} onPress={() => navigation.goBack()}>
+          <Text>{t("back")}</Text>
+        </Pressable>
+        <Pressable style={styles.button} onPress={() => navigation.navigate("Service")}>
+          <Text style={styles.buttonText}>{t("next")}</Text>
+        </Pressable>
       </View>
     </Screen>
   );
@@ -334,29 +493,53 @@ function OpenFeedback({ navigation }: OpenFeedbackProps) {
 
 type ServiceProps = NativeStackScreenProps<RootStackParamList, "Service">;
 function Service({ navigation }: ServiceProps) {
+  const { t } = useLang();
   const { answers, update } = useSurvey();
-  const services = ["Valitse palvelu","Apuvälinepalvelut","Fysioterapiapalvelut","Hoitajavastaanotto","Jalkaterapiapalvelut",
-    "KyläOPTIKKO -optikkopalvelut","Ohjattu ryhmätoiminta","Osteopatiapalvelut","Perhevalmennus",
-    "Senioripalvelut","Suun terveydenhuollon palvelut","Toimintaterapiapalvelut","Muu"];
+
+  const services = [
+    t("chooseService"),
+    "Apuvälinepalvelut / Assistive services",
+    "Fysioterapiapalvelut / Physiotherapy",
+    "Hoitajavastaanotto / Nurse services",
+    "Jalkaterapiapalvelut / Podiatry",
+    "KyläOPTIKKO -optikkopalvelut / Optician",
+    "Ohjattu ryhmätoiminta / Group activities",
+    "Osteopatiapalvelut / Osteopathy",
+    "Perhevalmennus / Family guidance",
+    "Senioripalvelut / Senior services",
+    "Suun terveydenhuollon palvelut / Dental care",
+    "Toimintaterapiapalvelut / Occupational therapy",
+    "Muu / Other",
+  ];
+
   const skipService = () => { update({ service: "" }); navigation.navigate("Submit"); };
+
   return (
     <Screen>
-      <Text style={styles.question}>Käyttämäsi palvelu</Text>
+      <Text style={styles.question}>{t("serviceTitle")}</Text>
       <View style={styles.pickerWrap}>
         <Picker
           selectedValue={answers.service || services[0]}
-          onValueChange={(v: string) => update({ service: v === "Valitse palvelu" ? "" : v })}
+          onValueChange={(v: string) => update({ service: v === services[0] ? "" : v })}
         >
           {services.map((s) => <Picker.Item key={s} label={s} value={s} />)}
         </Picker>
       </View>
+
       <Pressable accessibilityRole="button" onPress={skipService} style={styles.textLink}>
-        <Text style={styles.textLinkLabel}>En halua kertoa tätä</Text>
+        <Text style={styles.textLinkLabel}>{t("skipService")}</Text>
       </Pressable>
+
       <View style={styles.navRow}>
-        <Pressable style={styles.secondary} onPress={() => navigation.goBack()}><Text>Takaisin</Text></Pressable>
-        <Pressable style={[styles.button, { opacity: answers.service ? 1 : 0.5 }]} disabled={!answers.service} onPress={() => navigation.navigate("Submit")}>
-          <Text style={styles.buttonText}>Seuraava</Text>
+        <Pressable style={styles.secondary} onPress={() => navigation.goBack()}>
+          <Text>{t("back")}</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.button, { opacity: answers.service ? 1 : 0.5 }]}
+          disabled={!answers.service}
+          onPress={() => navigation.navigate("Submit")}
+        >
+          <Text style={styles.buttonText}>{t("send")}</Text>
         </Pressable>
       </View>
     </Screen>
@@ -365,9 +548,11 @@ function Service({ navigation }: ServiceProps) {
 
 type SubmitProps = NativeStackScreenProps<RootStackParamList, "Submit">;
 function SubmitScreen({ navigation }: SubmitProps) {
+  const { t } = useLang();
   const db = useSQLiteContext();
   const { answers, reset } = useSurvey();
   const savedRef = useRef(false);
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -377,14 +562,15 @@ function SubmitScreen({ navigation }: SubmitProps) {
     })();
     return () => { mounted = false; };
   }, [db, answers]);
+
   const handleNew = () => { reset(); navigation.popToTop(); };
 
   return (
     <Screen>
-      <Text style={styles.title}>Kiitos!</Text>
-      <Text style={styles.question}>Palautteesi tukee opiskelijoiden kasvua tulevaisuuden osaajiksi. {"\u2764\uFE0F"}</Text>
+      <Text style={styles.title}>{t("thanks")}</Text>
+      <Text style={styles.question}>{t("received")}</Text>
       <Pressable style={[styles.button, { marginTop: 24 }]} onPress={handleNew}>
-        <Text style={styles.buttonText}>Uusi vastaus</Text>
+        <Text style={styles.buttonText}>{t("new")}</Text>
       </Pressable>
     </Screen>
   );
@@ -396,22 +582,24 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <SQLiteProvider databaseName="feedback.db" onInit={migrateDbIfNeeded}>
-        <SurveyProvider>
-          <NavigationContainer>
-            <Stack.Navigator>
-              <Stack.Screen name="Start" component={StartScreen} options={{ title: "Aloitus" }} />
-              <Stack.Screen name="AdminTools" component={AdminTools} options={{ title: "Ylläpito", presentation: "modal" }} />
-              <Stack.Screen name="Q1" component={GenericStarQuestion} options={{ title: "Kysymys 1" }} initialParams={{ keyName: "q1", question: "Palvelut olivat helposti saatavilla", next: "Q2" }} />
-              <Stack.Screen name="Q2" component={GenericStarQuestion} options={{ title: "Kysymys 2" }} initialParams={{ keyName: "q2", question: "Palvelukokemus oli mielestäni viihtyisä ja sujuva", next: "Q3" }} />
-              <Stack.Screen name="Q3" component={GenericStarQuestion} options={{ title: "Kysymys 3" }} initialParams={{ keyName: "q3", question: "Koen saaneeni tukea tai tarvittaessa ohjausta", next: "Q4" }} />
-              <Stack.Screen name="Q4" component={GenericStarQuestion} options={{ title: "Kysymys 4" }} initialParams={{ keyName: "q4", question: "Haluaisin tulla uudelleen / suosittelen palvelua muille", next: "Q5" }} />
-              <Stack.Screen name="Q5" component={Question5} options={{ title: "Kysymys 5" }} />
-              <Stack.Screen name="OpenFeedback" component={OpenFeedback} options={{ title: "Avoin palaute" }} />
-              <Stack.Screen name="Service" component={Service} options={{ title: "Palvelu" }} />
-              <Stack.Screen name="Submit" component={SubmitScreen} options={{ title: "Kiitos" }} />
-            </Stack.Navigator>
-          </NavigationContainer>
-        </SurveyProvider>
+        <LanguageProvider>
+          <SurveyProvider>
+            <NavigationContainer>
+              <Stack.Navigator screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="Start" component={StartScreen} />
+                <Stack.Screen name="AdminTools" component={AdminTools} />
+                <Stack.Screen name="Q1" component={GenericStarQuestion} initialParams={{ keyName: "q1", next: "Q2" }} />
+                <Stack.Screen name="Q2" component={GenericStarQuestion} initialParams={{ keyName: "q2", next: "Q3" }} />
+                <Stack.Screen name="Q3" component={GenericStarQuestion} initialParams={{ keyName: "q3", next: "Q4" }} />
+                <Stack.Screen name="Q4" component={GenericStarQuestion} initialParams={{ keyName: "q4", next: "Q5" }} />
+                <Stack.Screen name="Q5" component={Question5} />
+                <Stack.Screen name="OpenFeedback" component={OpenFeedback} />
+                <Stack.Screen name="Service" component={Service} />
+                <Stack.Screen name="Submit" component={SubmitScreen} />
+              </Stack.Navigator>
+            </NavigationContainer>
+          </SurveyProvider>
+        </LanguageProvider>
       </SQLiteProvider>
     </SafeAreaProvider>
   );
@@ -447,18 +635,6 @@ const styles = StyleSheet.create({
   pickerWrap: { borderWidth: 1, borderColor: "#ddd", borderRadius: 12, overflow: "hidden", backgroundColor: "#ffffffff" },
   textLink: { alignSelf: "center", marginTop: 8, padding: 6 },
   textLinkLabel: { textDecorationLine: "underline", color: "#4b5563", fontWeight: "600" },
-  helperText: {
-  fontSize: 14,
-  textAlign: "center",
-  color: "#555",
-  marginBottom: 12,
-},
-
-subnote: {
-  fontSize: 14,
-  textAlign: "center",
-  color: "#666",
-  marginBottom: 6,
-},
-
+  helperText: { fontSize: 14, textAlign: "center", color: "#555", marginBottom: 12 },
+  subnote: { fontSize: 14, textAlign: "center", color: "#666", marginBottom: 6 },
 });
