@@ -239,61 +239,133 @@ async function migrateDbIfNeeded(db: SQLiteDatabase) {
     CREATE TABLE IF NOT EXISTS responses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      q1 INTEGER NOT NULL,
-      q2 INTEGER NOT NULL,
-      q3 INTEGER NOT NULL,
-      q4 INTEGER NOT NULL,
-      q5 INTEGER NULL,          -- 1 = true, 0 = false, NULL = not answered
+
+      -- Q1: "Services were easily accessible"
+      services_were_easily_accessible INTEGER NOT NULL,
+
+      -- Q2: "My service experience was pleasant and smooth"
+      service_experience_pleasant_smooth INTEGER NOT NULL,
+
+      -- Q3: "I felt supported or guided when needed"
+      felt_supported_or_guided INTEGER NOT NULL,
+
+      -- Q4: "I would like to return / I recommend the service to others"
+      would_return_or_recommend INTEGER NOT NULL,
+
+      -- Q5: Would you like to give open feedback?
+      -- 1 = true, 0 = false, NULL = not answered
+      wants_open_feedback INTEGER NULL,
+
       feedback TEXT NOT NULL,
       service TEXT NOT NULL
     );
-    CREATE INDEX IF NOT EXISTS idx_responses_created_at ON responses(created_at);
+
+    CREATE INDEX IF NOT EXISTS idx_responses_created_at
+      ON responses(created_at);
   `);
 }
+
 async function saveResponse(db: SQLiteDatabase, a: SurveyAnswers) {
   const q5val = a.q5 === null ? null : (a.q5 ? 1 : 0);
+
   await db.runAsync(
-    `INSERT INTO responses (q1,q2,q3,q4,q5,feedback,service)
+    `INSERT INTO responses (
+       services_were_easily_accessible,
+       service_experience_pleasant_smooth,
+       felt_supported_or_guided,
+       would_return_or_recommend,
+       wants_open_feedback,
+       feedback,
+       service
+     )
      VALUES (?,?,?,?,?,?,?)`,
-    [a.q1, a.q2, a.q3, a.q4, q5val, a.feedback.trim(), a.service.trim()]
+    [
+      a.q1, // Q1 → services_were_easily_accessible
+      a.q2, // Q2 → service_experience_pleasant_smooth
+      a.q3, // Q3 → felt_supported_or_guided
+      a.q4, // Q4 → would_return_or_recommend
+      q5val, // Q5 (yes/no) → wants_open_feedback
+      a.feedback.trim(),
+      a.service.trim(),
+    ]
   );
 }
+
 async function exportCsv(db: SQLiteDatabase): Promise<string> {
   const rows = await db.getAllAsync<{
-    id: number; created_at: string; q1: number; q2: number; q3: number; q4: number; q5: number | null; feedback: string; service: string;
-  }>(`SELECT id, created_at, q1, q2, q3, q4, q5, feedback, service FROM responses ORDER BY id ASC`);
+    id: number;
+    created_at: string;
+    services_were_easily_accessible: number;
+    service_experience_pleasant_smooth: number;
+    felt_supported_or_guided: number;
+    would_return_or_recommend: number;
+    wants_open_feedback: number | null;
+    feedback: string;
+    service: string;
+  }>(`
+    SELECT
+      id,
+      created_at,
+      services_were_easily_accessible,
+      service_experience_pleasant_smooth,
+      felt_supported_or_guided,
+      would_return_or_recommend,
+      wants_open_feedback,
+      feedback,
+      service
+    FROM responses
+    ORDER BY id ASC
+  `);
 
-  const header = ["id","created_at","q1","q2","q3","q4","q5","feedback","service"];
+  const header = [
+    "id",
+    "created_at",
+    "services_were_easily_accessible",
+    "service_experience_pleasant_smooth",
+    "felt_supported_or_guided",
+    "would_return_or_recommend",
+    "wants_open_feedback",
+    "feedback",
+    "service",
+  ];
+
   const escapeCsv = (val: unknown) => {
     if (val === null || val === undefined) return "";
     const s = String(val);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
 
   const lines = [
     header.join(","),
-    ...rows.map(r => [
-      r.id,
-      r.created_at,
-      r.q1,
-      r.q2,
-      r.q3,
-      r.q4,
-      r.q5 === null ? "" : r.q5,
-      r.feedback,
-      r.service,
-    ].map(escapeCsv).join(","))
+    ...rows.map((r) =>
+      [
+        r.id,
+        r.created_at,
+        r.services_were_easily_accessible,
+        r.service_experience_pleasant_smooth,
+        r.felt_supported_or_guided,
+        r.would_return_or_recommend,
+        r.wants_open_feedback === null ? "" : r.wants_open_feedback,
+        r.feedback,
+        r.service,
+      ]
+        .map(escapeCsv)
+        .join(",")
+    ),
   ];
 
   const csv = lines.join("\n");
-  const stamp = new Date().toISOString().replace(/[:.]/g,"-");
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const fileUri = `${FileSystem.documentDirectory}responses-${stamp}.csv`;
 
   await FileSystem.writeAsStringAsync(fileUri, csv);
 
   try {
     if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(fileUri, { mimeType: "text/csv", dialogTitle: "Vie CSV" });
+      await Sharing.shareAsync(fileUri, {
+        mimeType: "text/csv",
+        dialogTitle: "Vie CSV",
+      });
     } else {
       Alert.alert("CSV luotu", `Tiedosto: ${fileUri}`);
     }
@@ -303,6 +375,7 @@ async function exportCsv(db: SQLiteDatabase): Promise<string> {
 
   return fileUri;
 }
+
 
 /* -------------------- Admin unlock helpers -------------------- */
 const ADMIN_PIN = String(Constants?.expoConfig?.extra?.adminPin ?? "2323");
@@ -581,7 +654,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function App() {
   return (
     <SafeAreaProvider>
-      <SQLiteProvider databaseName="feedback.db" onInit={migrateDbIfNeeded}>
+      <SQLiteProvider databaseName="feedback_v2.db" onInit={migrateDbIfNeeded}>
         <LanguageProvider>
           <SurveyProvider>
             <NavigationContainer>
