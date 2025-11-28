@@ -1,6 +1,16 @@
-import React, { createContext, useContext, useState, PropsWithChildren, useRef, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  PropsWithChildren,
+  useRef,
+  useEffect,
+} from "react";
 import { NavigationContainer } from "@react-navigation/native";
-import { createNativeStackNavigator, NativeStackScreenProps } from "@react-navigation/native-stack";
+import {
+  createNativeStackNavigator,
+  NativeStackScreenProps,
+} from "@react-navigation/native-stack";
 import {
   View,
   Text,
@@ -17,7 +27,11 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import Constants from "expo-constants";
 
 // Data layer
-import { SQLiteProvider, useSQLiteContext, SQLiteDatabase } from "expo-sqlite";
+import {
+  SQLiteProvider,
+  useSQLiteContext,
+  SQLiteDatabase,
+} from "expo-sqlite";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 
@@ -47,7 +61,8 @@ const translations = {
     yes: "Kyllä",
     no: "Ei",
     thanks: "Kiitos!",
-    received: "Palautteesi tukee opiskelijoiden kasvua tulevaisuuden osaajiksi. \u2764\uFE0F",
+    received:
+      "Palautteesi tukee opiskelijoiden kasvua tulevaisuuden osaajiksi. \u2764\uFE0F",
     new: "Uusi vastaus",
     chooseService: "Valitse palvelu",
     adminTitle: "Ylläpito",
@@ -74,7 +89,8 @@ const translations = {
     yes: "Yes",
     no: "No",
     thanks: "Thank you!",
-    received: "Your feedback supports students’ growth into future professionals. \u2764\uFE0F",
+    received:
+      "Your feedback supports students’ growth into future professionals. \u2764\uFE0F",
     new: "New response",
     chooseService: "Select service",
     adminTitle: "Admin",
@@ -101,7 +117,8 @@ const translations = {
     yes: "Ja",
     no: "Nej",
     thanks: "Tack!",
-    received: "Din respons stöder studenternas utveckling till framtidens yrkeskunniga. \u2764\uFE0F",
+    received:
+      "Din respons stöder studenternas utveckling till framtidens yrkeskunniga. \u2764\uFE0F",
     new: "Nytt svar",
     chooseService: "Välj tjänst",
     adminTitle: "Administration",
@@ -113,7 +130,7 @@ const translations = {
 interface LanguageContextValue {
   lang: LangCode;
   setLang: (l: LangCode) => void;
-  t: (key: keyof typeof translations["fi"]) => string;
+  t: (key: keyof (typeof translations)["fi"]) => string;
 }
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 const useLang = () => {
@@ -123,14 +140,22 @@ const useLang = () => {
 };
 function LanguageProvider({ children }: PropsWithChildren) {
   const [lang, setLang] = useState<LangCode>("fi");
-  const t = (key: keyof typeof translations["fi"]) => translations[lang][key];
-  return <LanguageContext.Provider value={{ lang, setLang, t }}>{children}</LanguageContext.Provider>;
+  const t = (key: keyof (typeof translations)["fi"]) => translations[lang][key];
+  return (
+    <LanguageContext.Provider value={{ lang, setLang, t }}>
+      {children}
+    </LanguageContext.Provider>
+  );
 }
 function LanguagePicker() {
   const { lang, setLang } = useLang();
   return (
     <View style={{ alignSelf: "center", marginVertical: 8 }}>
-      <Picker selectedValue={lang} onValueChange={(v) => setLang(v as LangCode)} style={{ width: 220 }}>
+      <Picker
+        selectedValue={lang}
+        onValueChange={(v) => setLang(v as LangCode)}
+        style={{ width: 220 }}
+      >
         <Picker.Item label="🇫🇮 Suomi" value="fi" />
         <Picker.Item label="🇬🇧 English" value="en" />
         <Picker.Item label="🇸🇪 Svenska" value="sv" />
@@ -142,7 +167,10 @@ function LanguagePicker() {
 /* -------------------- Types -------------------- */
 type StarKeys = "q1" | "q2" | "q3" | "q4";
 interface SurveyAnswers {
-  q1: number; q2: number; q3: number; q4: number;
+  q1: number;
+  q2: number;
+  q3: number;
+  q4: number;
   q5: boolean | null;
   feedback: string;
   service: string; // "" = not disclosed
@@ -178,11 +206,31 @@ const useSurvey = () => {
 };
 function SurveyProvider({ children }: PropsWithChildren) {
   const [answers, setAnswers] = useState<SurveyAnswers>({
-    q1: 0, q2: 0, q3: 0, q4: 0, q5: null, feedback: "", service: "",
+    q1: 0,
+    q2: 0,
+    q3: 0,
+    q4: 0,
+    q5: null,
+    feedback: "",
+    service: "",
   });
-  const update = (patch: Partial<SurveyAnswers>) => setAnswers((s) => ({ ...s, ...patch }));
-  const reset = () => setAnswers({ q1: 0, q2: 0, q3: 0, q4: 0, q5: null, feedback: "", service: "" });
-  return <SurveyContext.Provider value={{ answers, update, reset }}>{children}</SurveyContext.Provider>;
+  const update = (patch: Partial<SurveyAnswers>) =>
+    setAnswers((s) => ({ ...s, ...patch }));
+  const reset = () =>
+    setAnswers({
+      q1: 0,
+      q2: 0,
+      q3: 0,
+      q4: 0,
+      q5: null,
+      feedback: "",
+      service: "",
+    });
+  return (
+    <SurveyContext.Provider value={{ answers, update, reset }}>
+      {children}
+    </SurveyContext.Provider>
+  );
 }
 
 /* -------------------- Orientation helper -------------------- */
@@ -192,28 +240,54 @@ function useIsLandscape() {
 }
 
 /* -------------------- UI Bits -------------------- */
-interface RatingStarsProps { value: number; onChange: (v: number) => void; }
+interface RatingStarsProps {
+  value: number;
+  onChange: (v: number) => void;
+}
 function RatingStars({ value, onChange }: RatingStarsProps) {
   return (
     <View style={{ flexDirection: "row", gap: 8, alignSelf: "center" }}>
-      {[1,2,3,4,5].map((n) => (
-        <Pressable key={n} onPress={() => onChange(n)} style={[styles.star, value >= n && styles.starActive]}>
-          <Text style={[styles.starText, value >= n && styles.starTextActive]}>★</Text>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <Pressable
+          key={n}
+          onPress={() => onChange(n)}
+          style={[styles.star, value >= n && styles.starActive]}
+        >
+          <Text style={[styles.starText, value >= n && styles.starTextActive]}>
+            ★
+          </Text>
         </Pressable>
       ))}
     </View>
   );
 }
-interface YesNoProps { value: boolean | null; onChange: (v: boolean) => void; }
+interface YesNoProps {
+  value: boolean | null;
+  onChange: (v: boolean) => void;
+}
 function YesNo({ value, onChange }: YesNoProps) {
   const { t } = useLang();
   return (
     <View style={{ flexDirection: "row", gap: 12, alignSelf: "center" }}>
-      <Pressable onPress={() => onChange(true)} style={[styles.pill, value === true && styles.pillActive]}>
-        <Text style={[styles.pillText, value === true && styles.pillTextActive]}>{t("yes")}</Text>
+      <Pressable
+        onPress={() => onChange(true)}
+        style={[styles.pill, value === true && styles.pillActive]}
+      >
+        <Text
+          style={[styles.pillText, value === true && styles.pillTextActive]}
+        >
+          {t("yes")}
+        </Text>
       </Pressable>
-      <Pressable onPress={() => onChange(false)} style={[styles.pill, value === false && styles.pillActive2]}>
-        <Text style={[styles.pillText, value === false && styles.pillTextActive2]}>{t("no")}</Text>
+      <Pressable
+        onPress={() => onChange(false)}
+        style={[styles.pill, value === false && styles.pillActive2]}
+      >
+        <Text
+          style={[styles.pillText, value === false && styles.pillTextActive2]}
+        >
+          {t("no")}
+        </Text>
       </Pressable>
     </View>
   );
@@ -224,8 +298,15 @@ const Screen: React.FC<React.PropsWithChildren> = ({ children }) => {
   const isLandscape = useIsLandscape();
   return (
     <ImageBackground source={bg} style={styles.bg} imageStyle={styles.bgImage}>
-      <SafeAreaView style={styles.safe} edges={['top','left','right','bottom']}>
-        <View style={[styles.container, isLandscape && styles.containerLandscape]}>{children}</View>
+      <SafeAreaView
+        style={styles.safe}
+        edges={["top", "left", "right", "bottom"]}
+      >
+        <View
+          style={[styles.container, isLandscape && styles.containerLandscape]}
+        >
+          {children}
+        </View>
       </SafeAreaView>
     </ImageBackground>
   );
@@ -266,7 +347,7 @@ async function migrateDbIfNeeded(db: SQLiteDatabase) {
 }
 
 async function saveResponse(db: SQLiteDatabase, a: SurveyAnswers) {
-  const q5val = a.q5 === null ? null : (a.q5 ? 1 : 0);
+  const q5val = a.q5 === null ? null : a.q5 ? 1 : 0;
 
   await db.runAsync(
     `INSERT INTO responses (
@@ -376,40 +457,74 @@ async function exportCsv(db: SQLiteDatabase): Promise<string> {
   return fileUri;
 }
 
-
 /* -------------------- Admin unlock helpers -------------------- */
 const ADMIN_PIN = String(Constants?.expoConfig?.extra?.adminPin ?? "2323");
-function useTripleTap(thresholdMs = 900, needed = 3) {
-  const taps = React.useRef<number[]>([]);
-  return () => {
-    const now = Date.now();
-    taps.current = [...taps.current.filter(t => now - t < thresholdMs), now];
-    return taps.current.length >= needed;
-  };
-}
+
 function AdminPinModal({
-  visible, onClose, onAuthed,
-}: { visible: boolean; onClose: () => void; onAuthed: () => void; }) {
+  visible,
+  onClose,
+  onAuthed,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onAuthed: () => void;
+}) {
   const [pin, setPin] = React.useState("");
   const check = () => {
-    if (pin === ADMIN_PIN) { setPin(""); onAuthed(); }
-    else { setPin(""); Alert.alert("Väärä PIN", "Yritä uudelleen."); }
+    if (pin === ADMIN_PIN) {
+      setPin("");
+      onAuthed();
+    } else {
+      setPin("");
+      Alert.alert("Väärä PIN", "Yritä uudelleen.");
+    }
   };
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={{flex:1, backgroundColor:"rgba(0,0,0,0.4)", justifyContent:"center", padding:24}}>
-        <View style={{ backgroundColor:"#fff", borderRadius:16, padding:16 }}>
-          <Text style={{ fontSize:18, fontWeight:"700", marginBottom:8 }}>Syötä henkilökunnan PIN</Text>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(0,0,0,0.4)",
+          justifyContent: "center",
+          padding: 24,
+        }}
+      >
+        <View
+          style={{ backgroundColor: "#fff", borderRadius: 16, padding: 16 }}
+        >
+          <Text
+            style={{ fontSize: 18, fontWeight: "700", marginBottom: 8 }}
+          >
+            Syötä henkilökunnan PIN
+          </Text>
           <TextInput
             placeholder="PIN"
             value={pin}
             onChangeText={setPin}
             keyboardType="number-pad"
             secureTextEntry
-            style={[styles.textarea, {minHeight: undefined, height: 48}]}
+            style={[styles.textarea, { minHeight: undefined, height: 48 }]}
           />
-          <View style={{ flexDirection:"row", justifyContent:"flex-end", gap:12, marginTop:12 }}>
-            <Pressable style={styles.secondary} onPress={() => { setPin(""); onClose(); }}>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "flex-end",
+              gap: 12,
+              marginTop: 12,
+            }}
+          >
+            <Pressable
+              style={styles.secondary}
+              onPress={() => {
+                setPin("");
+                onClose();
+              }}
+            >
               <Text>Peruuta</Text>
             </Pressable>
             <Pressable style={styles.button} onPress={check}>
@@ -427,37 +542,111 @@ type StartProps = NativeStackScreenProps<RootStackParamList, "Start">;
 function StartScreen({ navigation }: StartProps) {
   const { t } = useLang();
   const [showPin, setShowPin] = React.useState(false);
-  const tripleTap = useTripleTap();
-  const tryUnlock = () => { if (tripleTap()) setShowPin(true); };
+
+  // Secret sequence step:
+  // 0 = nothing, 1 = left corner long-pressed, waiting for right
+  const [secretStep, setSecretStep] = React.useState<0 | 1>(0);
+  const resetTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearSecretState = () => {
+    if (resetTimerRef.current) {
+      clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = null;
+    }
+    setSecretStep(0);
+  };
+
+  const handleLeftSecret = () => {
+    // First step in the sequence
+    clearSecretState();
+    setSecretStep(1);
+    // If right corner doesn't happen within 5s, reset
+    resetTimerRef.current = setTimeout(() => {
+      resetTimerRef.current = null;
+      setSecretStep(0);
+    }, 5000); // 5 seconds to move to the right corner
+  };
+
+  const handleRightSecret = () => {
+    if (secretStep === 1) {
+      // Correct sequence: left then right → open PIN
+      clearSecretState();
+      setShowPin(true);
+    }
+    // If secretStep is 0, ignore – no sequence started
+  };
+
+  // Cleanup if the screen unmounts
+  React.useEffect(() => {
+    return () => {
+      clearSecretState();
+    };
+  }, []);
 
   return (
     <Screen>
       <LanguagePicker />
 
-      {/* Triple-tap or long-press the title area to open admin PIN */}
-      <Pressable
-        onPress={tryUnlock}
-        onLongPress={() => setShowPin(true)}
-        hitSlop={20}
-        style={{ alignSelf: "center", paddingVertical: 8, paddingHorizontal: 12 }}
-      >
-        <Text style={styles.title}>{t("startTitle")}</Text>
-      </Pressable>
+      {/* Title is just text now */}
+      <Text style={styles.title}>{t("startTitle")}</Text>
 
       <Text style={styles.helperText}>{t("rateHint")}</Text>
 
-      <Pressable style={styles.button} onPress={() => navigation.navigate("Q1", { keyName: "q1", next: "Q2" })}>
+      <Pressable
+        style={styles.button}
+        onPress={() =>
+          navigation.navigate("Q1", { keyName: "q1", next: "Q2" })
+        }
+      >
         <Text style={styles.buttonText}>{t("startButton")}</Text>
       </Pressable>
+
+      {/* SECRET CORNERS – invisible, but tappable */}
+      <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
+        {/* Top-left secret area */}
+        <Pressable
+          onLongPress={handleLeftSecret}
+          delayLongPress={2000} // 2 second
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: 80,
+            height: 80,
+            // backgroundColor: "transparent", // keep invisible
+          }}
+          hitSlop={20} // easier to hit
+        />
+
+        {/* Top-right secret area */}
+        <Pressable
+          onLongPress={handleRightSecret}
+          delayLongPress={1000} // 1 second
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            width: 80,
+            height: 80,
+            // backgroundColor: "transparent",
+          }}
+          hitSlop={20}
+        />
+      </View>
 
       <AdminPinModal
         visible={showPin}
         onClose={() => setShowPin(false)}
-        onAuthed={() => { setShowPin(false); navigation.navigate("AdminTools"); }}
+        onAuthed={() => {
+          setShowPin(false);
+          navigation.navigate("AdminTools");
+        }}
       />
     </Screen>
   );
 }
+
+
 
 type AdminProps = NativeStackScreenProps<RootStackParamList, "AdminTools">;
 function AdminTools({ navigation }: AdminProps) {
@@ -470,25 +659,39 @@ function AdminTools({ navigation }: AdminProps) {
         Alert.alert("CSV luotu", `Tiedosto: ${path}`);
       }
     } catch (e: any) {
-      Alert.alert("CSV-vienti epäonnistui", e?.message ?? String(e));
+      Alert.alert(
+        "CSV-vienti epäonnistui",
+        e?.message ?? String(e)
+      );
     }
   };
   return (
     <Screen>
       <Text style={styles.title}>{t("adminTitle")}</Text>
-      <Text style={[styles.question, {marginBottom:16}]}>{t("exportHint")}</Text>
+      <Text style={[styles.question, { marginBottom: 16 }]}>
+        {t("exportHint")}
+      </Text>
       <Pressable style={styles.button} onPress={handleExport}>
         <Text style={styles.buttonText}>{t("exportAll")}</Text>
       </Pressable>
-      <Pressable style={[styles.secondary, { alignSelf:"center", marginTop:12 }]} onPress={() => navigation.goBack()}>
+      <Pressable
+        style={[styles.secondary, { alignSelf: "center", marginTop: 12 }]}
+        onPress={() => navigation.goBack()}
+      >
         <Text>{t("back")}</Text>
       </Pressable>
     </Screen>
   );
 }
 
-type GenericStarQuestionProps = NativeStackScreenProps<RootStackParamList, "Q1"|"Q2"|"Q3"|"Q4">;
-function GenericStarQuestion({ route, navigation }: GenericStarQuestionProps) {
+type GenericStarQuestionProps = NativeStackScreenProps<
+  RootStackParamList,
+  "Q1" | "Q2" | "Q3" | "Q4"
+>;
+function GenericStarQuestion({
+  route,
+  navigation,
+}: GenericStarQuestionProps) {
   const { t } = useLang();
   const { keyName, next } = route.params as QuestionRouteParams;
   const { answers, update } = useSurvey();
@@ -497,7 +700,12 @@ function GenericStarQuestion({ route, navigation }: GenericStarQuestionProps) {
     <Screen>
       <Text style={styles.question}>{t(keyName)}</Text>
       <Text style={styles.subnote}>{t("scaleHint")}</Text>
-      <RatingStars value={answers[keyName]} onChange={(v) => update({ [keyName]: v } as Partial<SurveyAnswers>)} />
+      <RatingStars
+        value={answers[keyName]}
+        onChange={(v) =>
+          update({ [keyName]: v } as Partial<SurveyAnswers>)
+        }
+      />
       <View style={styles.navRow}>
         <Pressable style={styles.secondary} onPress={() => navigation.goBack()}>
           <Text>{t("back")}</Text>
@@ -527,9 +735,14 @@ function Question5({ navigation }: Q5Props) {
           <Text>{t("back")}</Text>
         </Pressable>
         <Pressable
-          style={[styles.button, { opacity: answers.q5 !== null ? 1 : 0.5 }]}
+          style={[
+            styles.button,
+            { opacity: answers.q5 !== null ? 1 : 0.5 },
+          ]}
           disabled={answers.q5 === null}
-          onPress={() => navigation.navigate(answers.q5 ? "OpenFeedback" : "Service")}
+          onPress={() =>
+            navigation.navigate(answers.q5 ? "OpenFeedback" : "Service")
+          }
         >
           <Text style={styles.buttonText}>{t("next")}</Text>
         </Pressable>
@@ -538,7 +751,10 @@ function Question5({ navigation }: Q5Props) {
   );
 }
 
-type OpenFeedbackProps = NativeStackScreenProps<RootStackParamList, "OpenFeedback">;
+type OpenFeedbackProps = NativeStackScreenProps<
+  RootStackParamList,
+  "OpenFeedback"
+>;
 function OpenFeedback({ navigation }: OpenFeedbackProps) {
   const { t } = useLang();
   const { answers, update } = useSurvey();
@@ -556,7 +772,10 @@ function OpenFeedback({ navigation }: OpenFeedbackProps) {
         <Pressable style={styles.secondary} onPress={() => navigation.goBack()}>
           <Text>{t("back")}</Text>
         </Pressable>
-        <Pressable style={styles.button} onPress={() => navigation.navigate("Service")}>
+        <Pressable
+          style={styles.button}
+          onPress={() => navigation.navigate("Service")}
+        >
           <Text style={styles.buttonText}>{t("next")}</Text>
         </Pressable>
       </View>
@@ -585,7 +804,10 @@ function Service({ navigation }: ServiceProps) {
     "Muu / Other",
   ];
 
-  const skipService = () => { update({ service: "" }); navigation.navigate("Submit"); };
+  const skipService = () => {
+    update({ service: "" });
+    navigation.navigate("Submit");
+  };
 
   return (
     <Screen>
@@ -593,13 +815,21 @@ function Service({ navigation }: ServiceProps) {
       <View style={styles.pickerWrap}>
         <Picker
           selectedValue={answers.service || services[0]}
-          onValueChange={(v: string) => update({ service: v === services[0] ? "" : v })}
+          onValueChange={(v: string) =>
+            update({ service: v === services[0] ? "" : v })
+          }
         >
-          {services.map((s) => <Picker.Item key={s} label={s} value={s} />)}
+          {services.map((s) => (
+            <Picker.Item key={s} label={s} value={s} />
+          ))}
         </Picker>
       </View>
 
-      <Pressable accessibilityRole="button" onPress={skipService} style={styles.textLink}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={skipService}
+        style={styles.textLink}
+      >
         <Text style={styles.textLinkLabel}>{t("skipService")}</Text>
       </Pressable>
 
@@ -630,19 +860,35 @@ function SubmitScreen({ navigation }: SubmitProps) {
     let mounted = true;
     (async () => {
       if (savedRef.current) return;
-      try { await saveResponse(db, answers); savedRef.current = true; }
-      catch (e: any) { if (mounted) Alert.alert("Tallennus epäonnistui", e?.message ?? String(e)); }
+      try {
+        await saveResponse(db, answers);
+        savedRef.current = true;
+      } catch (e: any) {
+        if (mounted)
+          Alert.alert(
+            "Tallennus epäonnistui",
+            e?.message ?? String(e)
+          );
+      }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [db, answers]);
 
-  const handleNew = () => { reset(); navigation.popToTop(); };
+  const handleNew = () => {
+    reset();
+    navigation.popToTop();
+  };
 
   return (
     <Screen>
       <Text style={styles.title}>{t("thanks")}</Text>
       <Text style={styles.question}>{t("received")}</Text>
-      <Pressable style={[styles.button, { marginTop: 24 }]} onPress={handleNew}>
+      <Pressable
+        style={[styles.button, { marginTop: 24 }]}
+        onPress={handleNew}
+      >
         <Text style={styles.buttonText}>{t("new")}</Text>
       </Pressable>
     </Screen>
@@ -661,12 +907,31 @@ export default function App() {
               <Stack.Navigator screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="Start" component={StartScreen} />
                 <Stack.Screen name="AdminTools" component={AdminTools} />
-                <Stack.Screen name="Q1" component={GenericStarQuestion} initialParams={{ keyName: "q1", next: "Q2" }} />
-                <Stack.Screen name="Q2" component={GenericStarQuestion} initialParams={{ keyName: "q2", next: "Q3" }} />
-                <Stack.Screen name="Q3" component={GenericStarQuestion} initialParams={{ keyName: "q3", next: "Q4" }} />
-                <Stack.Screen name="Q4" component={GenericStarQuestion} initialParams={{ keyName: "q4", next: "Q5" }} />
+                <Stack.Screen
+                  name="Q1"
+                  component={GenericStarQuestion}
+                  initialParams={{ keyName: "q1", next: "Q2" }}
+                />
+                <Stack.Screen
+                  name="Q2"
+                  component={GenericStarQuestion}
+                  initialParams={{ keyName: "q2", next: "Q3" }}
+                />
+                <Stack.Screen
+                  name="Q3"
+                  component={GenericStarQuestion}
+                  initialParams={{ keyName: "q3", next: "Q4" }}
+                />
+                <Stack.Screen
+                  name="Q4"
+                  component={GenericStarQuestion}
+                  initialParams={{ keyName: "q4", next: "Q5" }}
+                />
                 <Stack.Screen name="Q5" component={Question5} />
-                <Stack.Screen name="OpenFeedback" component={OpenFeedback} />
+                <Stack.Screen
+                  name="OpenFeedback"
+                  component={OpenFeedback}
+                />
                 <Stack.Screen name="Service" component={Service} />
                 <Stack.Screen name="Submit" component={SubmitScreen} />
               </Stack.Navigator>
@@ -684,30 +949,108 @@ const styles = StyleSheet.create({
   bgImage: { resizeMode: "cover" },
   safe: { flex: 1 },
   container: {
-    flex: 1, paddingHorizontal: 20, paddingVertical: 20, gap: 16, justifyContent: "center",
-    width: "100%", maxWidth: 720, alignSelf: "center",
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    gap: 16,
+    justifyContent: "center",
+    width: "100%",
+    maxWidth: 720,
+    alignSelf: "center",
   },
   containerLandscape: { paddingHorizontal: 40 },
   title: { fontSize: 24, fontWeight: "700", textAlign: "center" },
-  question: { fontSize: 18, fontWeight: "600", marginBottom: 8, textAlign: "center" },
-  button: { backgroundColor: "#ff5000", paddingVertical: 12, paddingHorizontal: 20, borderRadius: 16, alignItems: "center" },
+  question: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  button: {
+    backgroundColor: "#ff5000",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    alignItems: "center",
+  },
   buttonText: { color: "#fff", fontWeight: "700" },
-  secondary: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: "#d0d0d0", backgroundColor: "#fff" },
-  navRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 16 },
-  star: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center", borderColor: "#d0d0d0", backgroundColor: "#fff" },
+  secondary: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#d0d0d0",
+    backgroundColor: "#fff",
+  },
+  navRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 16,
+  },
+  star: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderColor: "#d0d0d0",
+    backgroundColor: "#fff",
+  },
   starActive: { backgroundColor: "#fffddbff", borderColor: "#fff000" },
   starText: { fontSize: 22, color: "#aaaaaa" },
   starTextActive: { color: "#fff000" },
-  pill: { paddingVertical: 10, paddingHorizontal: 18, borderRadius: 999, borderWidth: 1, borderColor: "#d0d0d0", backgroundColor: "#fff"},
+  pill: {
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#d0d0d0",
+    backgroundColor: "#fff",
+  },
   pillActive: { backgroundColor: "#8ceba5", borderColor: "#8ceba5" },
   pillText: { fontWeight: "600" },
   pillTextActive: { color: "#0a8f2a" },
   pillActive2: { backgroundColor: "#babbbd", borderColor: "#babbbd" },
   pillTextActive2: { color: "#505050ff" },
-  textarea: { minHeight: 140, borderWidth: 1, borderColor: "#ddd", borderRadius: 12, padding: 12, textAlignVertical: "top", backgroundColor: "#ffffffff" },
-  pickerWrap: { borderWidth: 1, borderColor: "#ddd", borderRadius: 12, overflow: "hidden", backgroundColor: "#ffffffff" },
+  textarea: {
+    minHeight: 140,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 12,
+    padding: 12,
+    textAlignVertical: "top",
+    backgroundColor: "#ffffffff",
+  },
+  pickerWrap: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#ffffffff",
+  },
   textLink: { alignSelf: "center", marginTop: 8, padding: 6 },
-  textLinkLabel: { textDecorationLine: "underline", color: "#4b5563", fontWeight: "600" },
-  helperText: { fontSize: 14, textAlign: "center", color: "#555", marginBottom: 12 },
-  subnote: { fontSize: 14, textAlign: "center", color: "#666", marginBottom: 6 },
+  textLinkLabel: {
+    textDecorationLine: "underline",
+    color: "#4b5563",
+    fontWeight: "600",
+  },
+  helperText: {
+    fontSize: 14,
+    textAlign: "center",
+    color: "#555",
+    marginBottom: 12,
+  },
+  subnote: {
+    fontSize: 14,
+    textAlign: "center",
+    color: "#666",
+    marginBottom: 6,
+  },
+  debugCorner: {
+    flex: 1,
+    backgroundColor: "rgba(0, 255, 0, 0.3)",
+    borderWidth: 1,
+    borderColor: "rgba(0, 150, 0, 0.8)",
+  },
 });
