@@ -544,42 +544,98 @@ function StartScreen({ navigation }: StartProps) {
   const [showPin, setShowPin] = React.useState(false);
 
   // Secret sequence step:
-  // 0 = nothing, 1 = left corner long-pressed, waiting for right
+  // 0 = nothing, 1 = left corner confirmed, waiting for right
   const [secretStep, setSecretStep] = React.useState<0 | 1>(0);
+
+  // Timer that resets the sequence if right corner doesn't happen in time
   const resetTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const clearSecretState = () => {
+  // Timers for how long each corner is held
+  const leftHoldTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rightHoldTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearResetTimer = () => {
     if (resetTimerRef.current) {
       clearTimeout(resetTimerRef.current);
       resetTimerRef.current = null;
     }
+  };
+
+  const clearLeftHoldTimer = () => {
+    if (leftHoldTimerRef.current) {
+      clearTimeout(leftHoldTimerRef.current);
+      leftHoldTimerRef.current = null;
+    }
+  };
+
+  const clearRightHoldTimer = () => {
+    if (rightHoldTimerRef.current) {
+      clearTimeout(rightHoldTimerRef.current);
+      rightHoldTimerRef.current = null;
+    }
+  };
+
+  const clearAllSecretState = () => {
+    clearResetTimer();
+    clearLeftHoldTimer();
+    clearRightHoldTimer();
     setSecretStep(0);
   };
 
-  const handleLeftSecret = () => {
-    // First step in the sequence
-    clearSecretState();
+  // Called when left corner has been held long enough
+  const confirmLeftCorner = () => {
+    clearAllSecretState();
     setSecretStep(1);
-    // If right corner doesn't happen within 5s, reset
+
+    // If right corner doesn't happen within 5s, reset sequence
     resetTimerRef.current = setTimeout(() => {
       resetTimerRef.current = null;
       setSecretStep(0);
-    }, 5000); // 5 seconds to move to the right corner
+    }, 5000);
   };
 
-  const handleRightSecret = () => {
+  // Called when right corner has been held long enough
+  const confirmRightCorner = () => {
     if (secretStep === 1) {
-      // Correct sequence: left then right → open PIN
-      clearSecretState();
+      // Correct sequence: left then right
+      clearAllSecretState();
       setShowPin(true);
+    } else {
+      // If left wasn't confirmed first, ignore
+      clearRightHoldTimer();
     }
-    // If secretStep is 0, ignore – no sequence started
+  };
+
+  // LEFT corner press handlers
+  const handleLeftPressIn = () => {
+    clearLeftHoldTimer();
+    leftHoldTimerRef.current = setTimeout(() => {
+      leftHoldTimerRef.current = null;
+      confirmLeftCorner();
+    }, 1500); // 0.7 seconds hold
+  };
+
+  const handleLeftPressOut = () => {
+    clearLeftHoldTimer();
+  };
+
+  // RIGHT corner press handlers
+  const handleRightPressIn = () => {
+    clearRightHoldTimer();
+    rightHoldTimerRef.current = setTimeout(() => {
+      rightHoldTimerRef.current = null;
+      confirmRightCorner();
+    }, 1500); // 0.7 seconds hold
+  };
+
+  const handleRightPressOut = () => {
+    clearRightHoldTimer();
   };
 
   // Cleanup if the screen unmounts
   React.useEffect(() => {
     return () => {
-      clearSecretState();
+      clearAllSecretState();
     };
   }, []);
 
@@ -601,33 +657,35 @@ function StartScreen({ navigation }: StartProps) {
         <Text style={styles.buttonText}>{t("startButton")}</Text>
       </Pressable>
 
-      {/* SECRET CORNERS – invisible, but tappable */}
+      {/* SECRET CORNERS – invisible but tappable.
+          Pulled slightly away from true edges to avoid system gestures,
+          and a bit bigger so they're easy to hit in both orientations. */}
       <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
         {/* Top-left secret area */}
         <Pressable
-          onLongPress={handleLeftSecret}
-          delayLongPress={2000} // 2 second
+          onPressIn={handleLeftPressIn}
+          onPressOut={handleLeftPressOut}
           style={{
             position: "absolute",
-            top: 0,
-            left: 0,
-            width: 80,
-            height: 80,
+            top: 20,
+            left: 20,
+            width: 100,
+            height: 100,
             // backgroundColor: "transparent", // keep invisible
           }}
-          hitSlop={20} // easier to hit
+          hitSlop={20}
         />
 
         {/* Top-right secret area */}
         <Pressable
-          onLongPress={handleRightSecret}
-          delayLongPress={1000} // 1 second
+          onPressIn={handleRightPressIn}
+          onPressOut={handleRightPressOut}
           style={{
             position: "absolute",
-            top: 0,
-            right: 0,
-            width: 80,
-            height: 80,
+            top: 20,
+            right: 20,
+            width: 100,
+            height: 100,
             // backgroundColor: "transparent",
           }}
           hitSlop={20}
