@@ -68,6 +68,9 @@ const translations = {
     adminTitle: "Ylläpito",
     exportAll: "Vie kaikki vastaukset CSV:ksi",
     exportHint: "Vie kaikki vastaukset CSV:ksi.",
+    // timeout translations
+    timeoutTitle: "Aika loppui",
+    timeoutMessage: "Et suorittanut tehtävää ajoissa. Palataan alkuun.",
   },
   en: {
     startTitle: "HyMy-kylä feedback survey",
@@ -96,6 +99,9 @@ const translations = {
     adminTitle: "Admin",
     exportAll: "Export all responses to CSV",
     exportHint: "Export all responses to CSV.",
+    // timeout translations
+    timeoutTitle: "Time expired",
+    timeoutMessage: "You took too long. Returning to the start.",
   },
   sv: {
     startTitle: "HyMy-kylä feedbackenkät",
@@ -124,6 +130,9 @@ const translations = {
     adminTitle: "Administration",
     exportAll: "Exportera alla svar till CSV",
     exportHint: "Exportera alla svar till CSV.",
+    // timeout translations
+    timeoutTitle: "Tiden tog slut",
+    timeoutMessage: "Du slutförde inte uppgiften i tid. Återgår till start.",
   },
 } as const;
 
@@ -239,6 +248,23 @@ function useIsLandscape() {
   return width > height;
 }
 
+/* -------------------- Question timeout component -------------------- */
+// A tiny invisible component that triggers onTimeout after timeoutMs
+function QuestionTimeout({
+  timeoutMs = 30000,
+  onTimeout,
+}: {
+  timeoutMs?: number;
+  onTimeout: () => void;
+}) {
+  useEffect(() => {
+    const id = setTimeout(() => {
+      onTimeout();
+    }, timeoutMs);
+    return () => clearTimeout(id);
+  }, [timeoutMs, onTimeout]);
+  return null;
+}
 /* -------------------- UI Bits -------------------- */
 interface RatingStarsProps {
   value: number;
@@ -536,7 +562,6 @@ function AdminPinModal({
     </Modal>
   );
 }
-
 /* -------------------- Screens -------------------- */
 type StartProps = NativeStackScreenProps<RootStackParamList, "Start">;
 function StartScreen({ navigation }: StartProps) {
@@ -752,10 +777,31 @@ function GenericStarQuestion({
 }: GenericStarQuestionProps) {
   const { t } = useLang();
   const { keyName, next } = route.params as QuestionRouteParams;
-  const { answers, update } = useSurvey();
+  const { answers, update, reset } = useSurvey();
+
+  // timeout handler - only for Q1, Q2, Q3
+  const handleTimeout = () => {
+    // reset answers and go to Start
+    reset();
+    Alert.alert(t("timeoutTitle"), t("timeoutMessage"), [
+      {
+        text: "OK",
+        onPress: () =>
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "Start" }],
+          }),
+      },
+    ]);
+  };
 
   return (
     <Screen>
+      {/* Timeout active only for q1-q3 */}
+      {(keyName === "q1" || keyName === "q2" || keyName === "q3") && (
+        <QuestionTimeout timeoutMs={60000} onTimeout={handleTimeout} />
+      )}
+
       <Text style={styles.question}>{t(keyName)}</Text>
       <Text style={styles.subnote}>{t("scaleHint")}</Text>
       <RatingStars
@@ -808,7 +854,6 @@ function Question5({ navigation }: Q5Props) {
     </Screen>
   );
 }
-
 type OpenFeedbackProps = NativeStackScreenProps<
   RootStackParamList,
   "OpenFeedback"
